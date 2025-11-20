@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Ring Configurator Sample</title>
+
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      height: 100%;
+      background: #ffffff;
+      font-family: Arial, sans-serif;
+    }
+
+    .layout {
+      display: flex;
+      height: 100vh;
+      width: 100vw;
+    }
+
+    #viewer {
+      flex: 1;
+      background: #ffffff;
+    }
+
+    .sidebar {
+      width: 300px;
+      padding: 20px;
+      border-left: 1px solid #ddd;
+      background: #fafafa;
+      overflow-y: auto;
+    }
+
+    h2 {
+      margin-top: 10px;
+      font-size: 16px;
+      color: #444;
+    }
+
+    .opt-btn {
+      padding: 6px 12px;
+      margin: 3px;
+      border-radius: 6px;
+      background: #fff;
+      border: 1px solid #bbb;
+      cursor: pointer;
+      font-size: 13px;
+      transition: 0.2s;
+    }
+
+    .opt-btn:hover {
+      background: #eee;
+    }
+
+    .opt-btn.active {
+      background: #0074ff;
+      color: #fff;
+      border-color: #0074ff;
+    }
+  </style>
+</head>
+
+<body>
+<div class="layout">
+
+  <!-- LEFT: 3D Viewer -->
+  <div id="viewer"></div>
+
+  <!-- RIGHT: Simple UI -->
+  <div class="sidebar">
+
+    <h2>Ring Head (Bottom)</h2>
+    <button class="opt-btn" data-head="Head_1.glb">Head 1</button>
+    <button class="opt-btn" data-head="Head_2.glb">Head 2</button>
+
+    <h2>Stone Shape (Top)</h2>
+    <button class="opt-btn" data-stone="Top_Round.glb">Round</button>
+    <button class="opt-btn" data-stone="Top_Ovel.glb">Oval</button>
+    <button class="opt-btn" data-stone="Top_Heart.glb">Heart</button>
+    <button class="opt-btn" data-stone="Top_Marquis.glb">Marquise</button>
+    <button class="opt-btn" data-stone="Top_Aquer.glb">Pear</button>
+    <button class="opt-btn" data-stone="Top_Ractangle.glb">Rectangle</button>
+
+    <h2>Metal</h2>
+    <button class="opt-btn" data-metal="yellow">Yellow Gold</button>
+    <button class="opt-btn" data-metal="white">White Gold</button>
+    <button class="opt-btn" data-metal="rose">Rose Gold</button>
+
+  </div>
+
+</div>
+
+<!-- Three.js -->
+<script src="https://unpkg.com/three@0.146.0/build/three.min.js"></script>
+<script src="https://unpkg.com/three@0.146.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://unpkg.com/three@0.146.0/examples/js/loaders/GLTFLoader.js"></script>
+
+<script>
+/* CONFIG */
+const CONFIG = {
+  metals: {
+    yellow: 0xF8D879,
+    white:  0xE8E8E8,
+    rose:   0xE4B2A8
+  },
+  basePath: "/models/"
+};
+
+let ringMesh = null;
+let stoneMesh = null;
+
+const container = document.getElementById("viewer");
+
+/* ======== SCENE ======== */
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xffffff);
+
+const camera = new THREE.PerspectiveCamera(
+  30,
+  container.clientWidth / container.clientHeight,
+  0.1,
+  100
+);
+camera.position.set(0.5, 0.3, 1.4);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(container.clientWidth, container.clientHeight);
+renderer.setPixelRatio(window.devicePixelRatio);
+container.appendChild(renderer.domElement);
+
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+
+/* ======== James Allen Lighting ======== */
+scene.add(new THREE.AmbientLight(0xffffff, 0.9));
+
+const key = new THREE.DirectionalLight(0xffffff, 1.6);
+key.position.set(2, 4, 3);
+scene.add(key);
+
+const fill = new THREE.DirectionalLight(0xffffff, 1.2);
+fill.position.set(-2, 2, 4);
+scene.add(fill);
+
+const rim = new THREE.DirectionalLight(0xffffff, 1.0);
+rim.position.set(0, 3, -4);
+scene.add(rim);
+
+const loader = new THREE.GLTFLoader();
+
+/* ======== RING HEAD LOADER ======== */
+function loadHead(file) {
+  if (ringMesh) scene.remove(ringMesh);
+
+  loader.load(CONFIG.basePath + file, gltf => {
+    ringMesh = gltf.scene;
+
+    ringMesh.traverse(c => {
+      if (c.isMesh) {
+        c.geometry.computeVertexNormals();
+        c.material = new THREE.MeshStandardMaterial({
+          color: CONFIG.metals.white,
+          metalness: 1.0,
+          roughness: 0.25
+        });
+      }
+    });
+
+    scene.add(ringMesh);
+  });
+}
+
+/* ======== STONE SHAPE LOADER ======== */
+function loadStone(file) {
+  if (stoneMesh) scene.remove(stoneMesh);
+
+  loader.load(CONFIG.basePath + file, gltf => {
+    stoneMesh = gltf.scene;
+    stoneMesh.position.set(0, 0.015, 0);
+
+    stoneMesh.traverse(c => {
+      if (c.isMesh) {
+        c.geometry.computeVertexNormals();
+        c.material = new THREE.MeshPhysicalMaterial({
+          color: 0xffffff,
+          roughness: 0.02,
+          metalness: 0,
+          transmission: 0.97,
+          ior: 2.4,
+          thickness: 2,
+          envMapIntensity: 2
+        });
+      }
+    });
+
+    scene.add(stoneMesh);
+  });
+}
+
+/* Load default parts */
+loadHead("Head_1.glb");
+loadStone("Top_Round.glb");
+
+/* ======== UI EVENTS ======== */
+function activate(btn, group) {
+  document.querySelectorAll(group).forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+}
+
+/* Head (Bottom) */
+document.querySelectorAll("[data-head]").forEach(btn => {
+  btn.onclick = () => {
+    activate(btn, "[data-head]");
+    loadHead(btn.dataset.head);
+  };
+});
+
+/* Stone shape */
+document.querySelectorAll("[data-stone]").forEach(btn => {
+  btn.onclick = () => {
+    activate(btn, "[data-stone]");
+    loadStone(btn.dataset.stone);
+  };
+});
+
+/* Metal */
+document.querySelectorAll("[data-metal]").forEach(btn => {
+  btn.onclick = () => {
+    activate(btn, "[data-metal]");
+    const col = CONFIG.metals[btn.dataset.metal];
+    if (ringMesh)
+      ringMesh.traverse(c => c.isMesh && c.material.color.setHex(col));
+  };
+});
+
+/* Render Loop */
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+
+/* Resize */
+window.addEventListener("resize", () => {
+  renderer.setSize(container.clientWidth, container.clientHeight);
+  camera.aspect = container.clientWidth / container.clientHeight;
+  camera.updateProjectionMatrix();
+});
+</script>
+</body>
+</html>
